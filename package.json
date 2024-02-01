@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.0",
 	"type": "module",
-	"homepage": "https://github.com/TizianoSciarpetta/TizianoSciarpetta.github.io/",
+	"homepage": "https://TizianoSciarpetta.github.io/my-trips/",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
