@@ -3,9 +3,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import './style.css'
 import cloud from './textures/clouds.jpg?url'
 import map from './textures/water.png?url'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 
 const textureLoader = new THREE.TextureLoader()
 const velocity = { value: 0.06 }
+
 const locations = [
 	{
 		name: 'Roma',
@@ -49,13 +51,19 @@ const locations = [
  * Scene
  */
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xffcc33)
+// scene.background = new THREE.Color(0xffcc33)
 
 /**
  * Axes helper
  */
-//const axesHelper = new THREE.AxesHelper(10)
+const axesHelper = new THREE.AxesHelper(10)
 //scene.add(axesHelper)
+
+/**
+ * Grid Helper
+ */
+const gridHelper = new THREE.GridHelper(10, 10)
+//scene.add(gridHelper)
 
 /**
  * Render sizes
@@ -69,8 +77,7 @@ const sizes = {
  * Camera
  */
 const camera = new THREE.PerspectiveCamera(90, sizes.width / sizes.height, 0.1)
-camera.position.set(7.5, 10, 7.5)
-camera.lookAt(new THREE.Vector3(0, 2.5, 0))
+isMobile() ? camera.position.set(16, 5, 16) : camera.position.set(10, 5, 10)
 
 /**
  * Renderer
@@ -89,6 +96,14 @@ document.body.appendChild(renderer.domElement)
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
 
+if(isMobile()) {
+	controls.maxDistance = 25
+	controls.minDistance = 18
+}else {
+	controls.maxDistance = 20
+	controls.minDistance = 13
+}
+
 /**
  * Ambient light
  */
@@ -102,11 +117,54 @@ const pointLight = new THREE.PointLight('#ffffff', 0.2)
 camera.add(pointLight)
 
 /**
- * Earth creation
+ * Earth
  */
 const earth = createEarth()
-earth.rotation.y = -Math.PI* 0.3
+earth.rotation.y = -Math.PI * 0.3
 scene.add(camera, earth)
+
+const curveTmp = new THREE.EllipseCurve(0, 0, 9.5, 9.5);
+const pointsTmp = curveTmp.getPoints(500)
+
+pointsTmp.forEach(point => {
+	point.z = point.y
+	point.y = 0
+})
+
+const curve = new THREE.CatmullRomCurve3(pointsTmp);
+const points = curve.getPoints(100);
+
+const geometry = new THREE.BufferGeometry().setFromPoints(points);
+const material = new THREE.LineBasicMaterial( {
+	//color: 0xffffff
+	transparent: true,
+	opacity: 0
+});
+
+const orbit = new THREE.Line(geometry, material)
+scene.add(orbit)
+
+/**
+ * Airplane path
+ */
+//const airplanePath = createAirplanePath()
+//scene.add(airplanePath)
+
+/**
+ * Airplane
+ */
+var airplane = null;
+var mixer = null;
+new GLTFLoader().load('./assets/cartoon_plane.glb', function(glb) {
+	airplane = glb.scene
+
+	mixer = new THREE.AnimationMixer(glb.scene);
+	const animation = glb.animations[0];
+	const action = mixer.clipAction(animation);
+	action.play();
+
+	scene.add(airplane)
+});
 
 /**
  * Location & Path creation
@@ -130,6 +188,7 @@ const clock = new THREE.Clock()
 function tic() {
 	controls.update()
 
+	/** Earth animation */
 	const delta = clock.getDelta()
 
 	earth.rotation.y -= velocity.value * delta
@@ -138,6 +197,26 @@ function tic() {
 		cloudMesh.rotation.y += velocity.value * delta * 0.25
 	}
 
+	/** Airplane animation */
+	const elapsedTime = clock.getElapsedTime()
+	const loopTime = 20
+
+	const progress = (elapsedTime % loopTime) / loopTime
+
+	const position = curve.getPointAt(progress)
+	const nextPosition = curve.getPointAt(Math.min(progress + 0.01, 1))
+
+	if(airplane) {
+		airplane.position.copy(position)
+		airplane.lookAt(nextPosition)
+		airplane.rotateZ(Math.PI * 1.5)
+	}
+
+	if(mixer) {
+		mixer.update(0.02);
+	}
+
+	/** Render */
 	renderer.render(scene, camera)
 
 	requestAnimationFrame(tic)
@@ -168,11 +247,11 @@ function createEarth() {
 
 	const water = createWater(texture)
 	const ground = createGround(texture)
-	const atmo = createAtmo()
+	//const atmo = createAtmo()
 	const clouds = createClouds()
 
 	const group = new THREE.Group()
-	group.add(ground, water, atmo, clouds)
+	group.add(ground, water, clouds)
 
 	return group
 }//------------------------------------------------------------------------------------------------
@@ -290,4 +369,38 @@ function createPath(locationA, locationB) {
 	const mesh = new THREE.Mesh(geometry, material)
 
 	return mesh
+}//------------------------------------------------------------------------------------------------
+
+function createAirplanePath() {
+	var geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(100))
+    var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+	const mesh = new THREE.Mesh(geometry, material)
+
+	return mesh
+}//------------------------------------------------------------------------------------------------
+
+function createAirplane() {
+	/*
+	const geometry = new THREE.BoxGeometry(1, 1, 1)
+	const material = new THREE.MeshNormalMaterial()
+
+	const mesh = new THREE.Mesh(geometry, material)
+	
+	return mesh
+	*/
+}//------------------------------------------------------------------------------------------------
+
+function stepOver(progress) {
+	const position = curve.getPointAt(progress)
+	const nextPosition = curve.getPointAt(Math.min(progress + 0.01, 1))
+
+	if(airplane) {
+		airplane.position.copy(position)
+		airplane.lookAt(nextPosition)
+	}
+}//------------------------------------------------------------------------------------------------
+
+function isMobile() {
+	return window.innerWidth <= 768
 }//------------------------------------------------------------------------------------------------
