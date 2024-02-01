@@ -95,6 +95,7 @@ document.body.appendChild(renderer.domElement)
  */
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
+controls.enablePan = false
 
 if(isMobile()) {
 	controls.maxDistance = 25
