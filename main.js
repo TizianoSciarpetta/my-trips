@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import './style.css'
 import cloud from './textures/clouds.jpg?url'
 import map from './textures/water.png?url'
+import airplaneGlb from './assets/cartoon_plane.glb?url'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 
 const textureLoader = new THREE.TextureLoader()
@@ -156,7 +157,7 @@ scene.add(orbit)
  */
 var airplane = null;
 var mixer = null;
-new GLTFLoader().load('./assets/cartoon_plane.glb', function(glb) {
+new GLTFLoader().load(airplaneGlb, function(glb) {
 	airplane = glb.scene
 
 	mixer = new THREE.AnimationMixer(glb.scene);
