@@ -1,10 +1,16 @@
-import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import './style.css'
-import cloud from './textures/clouds.jpg?url'
-import map from './textures/water.png?url'
-import airplaneGlb from './assets/cartoon_plane.glb?url'
+import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+
+/** Textures */
+import cloudTexture from './textures/clouds.jpg?url'
+import waterTexture from './textures/water.png?url'
+
+/** Glb models */
+import airplaneGlb from './assets/airplane.glb?url'
+import elephantGlb from './assets/elephant.glb?url'
+import pyramidGlb from './assets/pyramid.glb?url'
 
 const textureLoader = new THREE.TextureLoader()
 const isMobile = window.innerWidth <= 768
@@ -78,6 +84,7 @@ const sizes = {
  */
 const camera = new THREE.PerspectiveCamera(90, sizes.width / sizes.height, 0.1)
 isMobile ? camera.position.set(16, 5, 16) : camera.position.set(10, 5, 10)
+scene.add(camera)
 
 /**
  * Renderer
@@ -99,10 +106,10 @@ controls.enablePan = false
 
 if(isMobile) {
 	controls.maxDistance = 25
-	controls.minDistance = 18
+	controls.minDistance = 12
 }else {
 	controls.maxDistance = 20
-	controls.minDistance = 13
+	controls.minDistance = 11
 }
 
 /**
@@ -122,7 +129,7 @@ camera.add(pointLight)
  */
 const earth = createEarth()
 earth.rotation.y = -Math.PI * 0.3
-scene.add(camera, earth)
+scene.add(earth)
 
 /**
  * Airplane curve
@@ -146,6 +153,18 @@ scene.add(airplane.scene)
  */
 const airplaneMixer = new THREE.AnimationMixer(airplane.scene)
 airplaneMixer.clipAction(airplane.animations[0]).play()
+
+/**
+ * Elephant family
+ */
+const elephantFamily = await createElephantFamily()
+earth.add(elephantFamily)
+
+/**
+ * Pyramid
+ */
+const pyramid = await createPyramid()
+earth.add(pyramid.scene)
 
 /**
  * Location & Path creation
@@ -213,7 +232,7 @@ function onResize() {
 }//------------------------------------------------------------------------------------------------
 
 function createEarth() {
-	const texture = textureLoader.load(map)
+	const texture = textureLoader.load(waterTexture)
 
 	const water = createWater(texture)
 	const ground = createGround(texture)
@@ -264,9 +283,9 @@ function createAtmo() {
 }//------------------------------------------------------------------------------------------------
 
 function createClouds() {
-	const texture = textureLoader.load(cloud)
+	const texture = textureLoader.load(cloudTexture)
 
-	const geometry = new THREE.SphereGeometry(8.25, 90, 90)
+	const geometry = new THREE.SphereGeometry(8.5, 90, 90)
 	const material = new THREE.MeshStandardMaterial({
 		color: 0xffffff,
 		transparent: true,
@@ -373,4 +392,48 @@ function airplaneStepForward(progress) {
 	airplane.scene.position.copy(position)
 	airplane.scene.lookAt(nextPosition)
 	airplane.scene.rotateZ(Math.PI * 1.5)
+}//------------------------------------------------------------------------------------------------
+
+async function createElephantFamily() {
+	const elephant = await createElephant(0.002, 0.66, 8.18)
+	const elephantChild1 = await createElephant(0.001, 3.66, 8.09)
+	const elephantChild2 = await createElephant(0.001, 5.8, 8.09)
+
+	const elephantFamily = new THREE.Group();
+	elephantFamily.add(elephant.scene, elephantChild1.scene, elephantChild2.scene)
+
+	return elephantFamily
+}//------------------------------------------------------------------------------------------------
+
+async function createElephant(scale, lt, radius) {
+	const elephant = await new GLTFLoader().loadAsync(elephantGlb)
+	
+	elephant.scene.scale.set(scale, scale, scale)
+	elephant.scene.rotateZ(Math.PI * 1.5)
+	
+	const elephantPosition = getLocationPosition(24.21, lt, radius)
+	elephant.scene.position.copy(elephantPosition)
+	
+	elephant.scene.lookAt(0, 0, 0)
+
+	elephant.scene.rotateX(-Math.PI * 0.5)
+	elephant.scene.rotateY(Math.PI * 0.5)
+
+	return elephant
+}//------------------------------------------------------------------------------------------------
+
+async function createPyramid() {
+	const pyramid = await new GLTFLoader().loadAsync(pyramidGlb)
+	
+	pyramid.scene.scale.set(0.3, 0.3, 0.3)
+
+	const pyramidPosition = getLocationPosition(26.33, 28.20, 8.07)
+	pyramid.scene.position.copy(pyramidPosition)
+	
+	pyramid.scene.lookAt(0, 0, 0)
+
+	pyramid.scene.rotateX(-Math.PI * 0.5)
+	pyramid.scene.rotateY(-Math.PI * 0.5)
+
+	return pyramid
 }//------------------------------------------------------------------------------------------------
