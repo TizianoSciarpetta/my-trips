@@ -7,8 +7,8 @@ import airplaneGlb from './assets/cartoon_plane.glb?url'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 
 const textureLoader = new THREE.TextureLoader()
+const isMobile = window.innerWidth <= 768
 const velocity = { value: 0.06 }
-
 const locations = [
 	{
 		name: 'Roma',
@@ -52,7 +52,6 @@ const locations = [
  * Scene
  */
 const scene = new THREE.Scene()
-// scene.background = new THREE.Color(0xffcc33)
 
 /**
  * Axes helper
@@ -78,7 +77,7 @@ const sizes = {
  * Camera
  */
 const camera = new THREE.PerspectiveCamera(90, sizes.width / sizes.height, 0.1)
-isMobile() ? camera.position.set(16, 5, 16) : camera.position.set(10, 5, 10)
+isMobile ? camera.position.set(16, 5, 16) : camera.position.set(10, 5, 10)
 
 /**
  * Renderer
@@ -98,7 +97,7 @@ const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
 controls.enablePan = false
 
-if(isMobile()) {
+if(isMobile) {
 	controls.maxDistance = 25
 	controls.minDistance = 18
 }else {
@@ -125,48 +124,28 @@ const earth = createEarth()
 earth.rotation.y = -Math.PI * 0.3
 scene.add(camera, earth)
 
-const curveTmp = new THREE.EllipseCurve(0, 0, 9.5, 9.5);
-const pointsTmp = curveTmp.getPoints(500)
-
-pointsTmp.forEach(point => {
-	point.z = point.y
-	point.y = 0
-})
-
-const curve = new THREE.CatmullRomCurve3(pointsTmp);
-const points = curve.getPoints(100);
-
-const geometry = new THREE.BufferGeometry().setFromPoints(points);
-const material = new THREE.LineBasicMaterial( {
-	//color: 0xffffff
-	transparent: true,
-	opacity: 0
-});
-
-const orbit = new THREE.Line(geometry, material)
-scene.add(orbit)
+/**
+ * Airplane curve
+ */
+const airplaneCurve = createAirplaneCurve()
 
 /**
  * Airplane path
  */
-//const airplanePath = createAirplanePath()
-//scene.add(airplanePath)
+const airplanePath = createAirplanePath()
+scene.add(airplanePath)
 
 /**
  * Airplane
  */
-var airplane = null;
-var mixer = null;
-new GLTFLoader().load(airplaneGlb, function(glb) {
-	airplane = glb.scene
+const airplane = await new GLTFLoader().loadAsync(airplaneGlb)
+scene.add(airplane.scene)
 
-	mixer = new THREE.AnimationMixer(glb.scene);
-	const animation = glb.animations[0];
-	const action = mixer.clipAction(animation);
-	action.play();
-
-	scene.add(airplane)
-});
+/**
+ * Airplane animations
+ */
+const airplaneMixer = new THREE.AnimationMixer(airplane.scene)
+airplaneMixer.clipAction(airplane.animations[0]).play()
 
 /**
  * Location & Path creation
@@ -189,34 +168,23 @@ const clock = new THREE.Clock()
  */
 function tic() {
 	controls.update()
-
-	/** Earth animation */
+	
 	const delta = clock.getDelta()
 
+	/** Animating earth */
 	earth.rotation.y -= velocity.value * delta
 
-	if(cloudMesh) {
-		cloudMesh.rotation.y += velocity.value * delta * 0.25
-	}
+	/** Animating clouds */
+	cloudMesh.rotation.y += velocity.value * delta * 0.25
 
-	/** Airplane animation */
+	/** Animating airplane */
 	const elapsedTime = clock.getElapsedTime()
 	const loopTime = 20
 
 	const progress = (elapsedTime % loopTime) / loopTime
+	airplaneStepForward(progress)
 
-	const position = curve.getPointAt(progress)
-	const nextPosition = curve.getPointAt(Math.min(progress + 0.01, 1))
-
-	if(airplane) {
-		airplane.position.copy(position)
-		airplane.lookAt(nextPosition)
-		airplane.rotateZ(Math.PI * 1.5)
-	}
-
-	if(mixer) {
-		mixer.update(0.02);
-	}
+	airplaneMixer.update(0.02);
 
 	/** Render */
 	renderer.render(scene, camera)
@@ -373,36 +341,36 @@ function createPath(locationA, locationB) {
 	return mesh
 }//------------------------------------------------------------------------------------------------
 
+function createAirplaneCurve() {
+	const curve = new THREE.EllipseCurve(0, 0, 9.5, 9.5);
+	const points = curve.getPoints(100)
+
+	points.forEach(point => {
+		point.z = point.y
+		point.y = 0
+	})
+
+	return new THREE.CatmullRomCurve3(points);
+}//------------------------------------------------------------------------------------------------
+
 function createAirplanePath() {
-	var geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(100))
-    var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+	const geometry = new THREE.BufferGeometry().setFromPoints(airplaneCurve.getPoints(100));
+	const material = new THREE.LineBasicMaterial( {
+		//color: 0xffffff
+		transparent: true,
+		opacity: 0
+	});
 
-	const mesh = new THREE.Mesh(geometry, material)
+	const mesh = new THREE.Line(geometry, material)
 
 	return mesh
 }//------------------------------------------------------------------------------------------------
 
-function createAirplane() {
-	/*
-	const geometry = new THREE.BoxGeometry(1, 1, 1)
-	const material = new THREE.MeshNormalMaterial()
+function airplaneStepForward(progress) {
+	const position = airplaneCurve.getPointAt(progress)
+	const nextPosition = airplaneCurve.getPointAt(Math.min(progress + 0.01, 1))
 
-	const mesh = new THREE.Mesh(geometry, material)
-	
-	return mesh
-	*/
-}//------------------------------------------------------------------------------------------------
-
-function stepOver(progress) {
-	const position = curve.getPointAt(progress)
-	const nextPosition = curve.getPointAt(Math.min(progress + 0.01, 1))
-
-	if(airplane) {
-		airplane.position.copy(position)
-		airplane.lookAt(nextPosition)
-	}
-}//------------------------------------------------------------------------------------------------
-
-function isMobile() {
-	return window.innerWidth <= 768
+	airplane.scene.position.copy(position)
+	airplane.scene.lookAt(nextPosition)
+	airplane.scene.rotateZ(Math.PI * 1.5)
 }//------------------------------------------------------------------------------------------------
