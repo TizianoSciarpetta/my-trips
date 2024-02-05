@@ -13,43 +13,49 @@ import elephantGlb from './assets/elephant.glb?url'
 import pyramidGlb from './assets/pyramid.glb?url'
 
 const textureLoader = new THREE.TextureLoader()
+const cursor = new THREE.Vector2()
+const raycaster = new THREE.Raycaster()
 const isMobile = window.innerWidth <= 768
-const velocity = { value: 0.06 }
+const velocity = { value: 0.006 }
 const locations = [
 	{
-		name: 'Roma',
+		name: 'Roma, Italia',
 		coords: [41.89, 12.49],
 	},
 	{
-		name: 'Doha',
+		name: 'Doha, Qatar',
 		coords: [25.28, 51.52]
 	},
 	{
-		name: 'Abu Dhabi',
+		name: 'Abu Dhabi, Emirati Arabi Uniti',
 		coords: [24.47, 54.45]
 	},
 	{
-		name: 'Kuala Lumpur',
+		name: 'Kuala Lumpur, Malesia',
 		coords: [3.13, 101.6],
 	},
 	{
-		name: 'Singapore',
+		name: 'Singapore, Repubblica di Singapore',
 		coords: [1.27, 103.85]
 	},
 	{
-		name: 'Zanzibar',
+		name: 'Zanzibar, Tanzania',
 		coords: [-6.15, 39.18]
 	},
 	{
-		name: 'Lampedusa',
+		name: 'Addis Abeba, Etiopia',
+		coords: [9.02, 38.75]
+	},
+	{
+		name: 'Lampedusa, Italia',
 		coords: [35.50, 12.61]
 	},
 	{
-		name: 'Valencia',
+		name: 'Valencia, Spagna',
 		coords: [39.46, -0.38]
 	},
 	{
-		name: 'Londra',
+		name: 'Londra, Inghilterra',
 		coords: [51.50, -0.12]
 	}
 ]
@@ -157,20 +163,25 @@ airplaneMixer.clipAction(airplane.animations[0]).play()
 /**
  * Elephant family
  */
-const elephantFamily = await createElephantFamily()
-earth.add(elephantFamily)
+//const elephantFamily = await createElephantFamily()
+//earth.add(elephantFamily)
 
 /**
  * Pyramid
  */
-const pyramid = await createPyramid()
-earth.add(pyramid.scene)
+//const pyramid = await createPyramid()
+//earth.add(pyramid.scene)
 
 /**
  * Location & Path creation
  */
+printLocation(locations)
+const cards = document.querySelectorAll('.card')
+
 locations.forEach((location, i) => {
 	const mesh = createLocation(location, i)
+	location.HTMLCard = cards[i]
+	location.mesh = mesh
 	earth.add(mesh)
 
 	if(i > 0) {
@@ -179,7 +190,10 @@ locations.forEach((location, i) => {
 	}
 })
 
+const locationMeshes = locations.map(({ mesh }) => mesh)
+
 const cloudMesh = earth.getObjectByName('clouds')
+const finalScale = new THREE.Vector3(2, 2, 2)
 const clock = new THREE.Clock()
 
 /**
@@ -190,11 +204,38 @@ function tic() {
 	
 	const delta = clock.getDelta()
 
+	raycaster.setFromCamera(cursor, camera)
+	const intersects = raycaster.intersectObjects(locationMeshes)
+	
+	const obj = intersects[0]
+	if(obj) {
+		velocity.value = THREE.MathUtils.lerp(velocity.value, 0, 0.05)
+	}else {
+		velocity.value = THREE.MathUtils.lerp(velocity.value, 0.006, 0.05)
+	}
+
+	const x = (cursor.x * 0.5 + 0.5) * window.innerWidth
+	const y = (-cursor.y * 0.5 + 0.5) * window.innerHeight
+
+	locations.forEach(location => {
+		const { mesh, HTMLCard: card } = location
+		
+		if(mesh === obj?.object) {
+			mesh.scale.lerp(finalScale, 0.05)
+			card.style.opacity = THREE.MathUtils.lerp(card.style.opacity, 1, 0.05)
+			card.style.top = (y + 20) + 'px'
+			card.style.left = (x + 20) + 'px'
+		}else {
+			mesh.scale.lerp(new THREE.Vector3().setScalar(1), 0.1)
+			card.style.opacity = THREE.MathUtils.lerp(card.style.opacity, 0, 0.1)
+		}
+	})
+
 	/** Animating earth */
-	earth.rotation.y -= velocity.value * delta
+	earth.rotation.y -= delta * velocity.value * 15
 
 	/** Animating clouds */
-	cloudMesh.rotation.y += velocity.value * delta * 0.25
+	cloudMesh.rotation.y += delta * velocity.value
 
 	/** Animating airplane */
 	const elapsedTime = clock.getElapsedTime()
@@ -216,9 +257,7 @@ requestAnimationFrame(tic)
 /**
  * Resize event listener
  */
-window.addEventListener('resize', onResize)
-
-function onResize() {
+window.addEventListener('resize', () => {
 	sizes.width = window.innerWidth
 	sizes.height = window.innerHeight
 
@@ -229,7 +268,15 @@ function onResize() {
 
 	const pixelRatio = Math.min(window.devicePixelRatio, 2)
 	renderer.setPixelRatio(pixelRatio)
-}//------------------------------------------------------------------------------------------------
+})//------------------------------------------------------------------------------------------------
+
+/**
+ * Mouse move event listener
+ */
+window.addEventListener('mousemove', (e) => {
+	cursor.x = 2 * (e.clientX / window.innerWidth) - 1
+	cursor.y = -2 * (e.clientY / window.innerHeight) + 1
+})//------------------------------------------------------------------------------------------------
 
 function createEarth() {
 	const texture = textureLoader.load(waterTexture)
@@ -437,3 +484,48 @@ async function createPyramid() {
 
 	return pyramid
 }//------------------------------------------------------------------------------------------------
+
+/**
+ * HTML cards
+ */
+function printLocation(locations) {
+	const container = document.createElement('div')
+	
+	container.classList.add(
+		'grid',
+		'grid-cols-8',
+		'gap-2',
+		'fixed',
+		'right-0',
+		'left-0',
+		'z-50',
+		'p-4',
+		'w-full',
+		'top-0',
+		'overflow-auto'
+	)
+
+	locations.forEach(location => {
+		container.innerHTML += `<div class="fixed pointer-events-none select-none card w-64 flex flex-col bg-amber-100 rounded border-4 border-gray-900 shadow-brutal" style="opacity: 0">
+			<div class="bg-blue-300 h-8 border-b-4 border-gray-900">
+				<div class="flex gap-2 items-center h-full px-2">
+					<div class="w-4 border-2 border-gray-900 h-4 rounded-full bg-red-800"></div>
+					<div class="w-4 border-2 border-gray-900 h-4 rounded-full bg-yellow-600"></div>
+					<div class="w-4 border-2 border-gray-900 h-4 rounded-full bg-green-700"></div>
+				</div>
+			</div>
+			<div class="absolute -top-8 p-2 -right-8 bg-rose-200 rounded-3xl rounded-br-xl border-4 border-gray-900 shadow-[5px_5px_0px_0px_#000]">
+				<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="500px" height="500px" viewBox="0 0 500 500" enable-background="new 0 0 500 500" class="w-10 lg:w-12 h-10 lg:h-12 text-gray-900"><path id="path6" fill="currentColor" d="M61.925,60.729c12.008-12.011,31.235-2.873,43.023,4.532    c13.794,8.665,25.993,19.841,37.474,31.321l66.963,66.964l208.147-39.9c1.233-0.618,3.14-0.279,4.407,0.074    c1.396,0.388,2.66,1.134,3.684,2.158l17.857,17.857c2.201,2.202,2.87,5.395,2.349,8.403c-0.485,2.808-2.273,4.955-4.86,6.104    l-160.436,76.451l68.359,68.358c18.595-5.313,37.19-10.65,55.888-15.595c3.688-0.975,7.382-1.954,11.105-2.788    c0.895-0.2,1.794-0.403,2.702-0.532c2.527-0.359,5.252,0.671,7.035,2.454l17.856,18.135c2.116,2.117,2.855,5.195,2.379,8.107    c-0.446,2.733-2.196,4.845-4.61,6.123l-78.125,43.248l-43.248,78.125c-1.447,2.314-3.645,3.984-6.385,4.367    c-2.839,0.397-5.792-0.36-7.846-2.414l-17.857-17.857c-1.888-1.887-2.842-4.712-2.403-7.356c0.211-1.274,0.511-2.535,0.808-3.792    c1.221-5.165,2.609-10.292,3.994-15.414c4.532-16.765,9.293-33.469,14.064-50.167l-68.359-68.359l-76.451,160.437    c-1.107,2.49-3.146,4.268-5.84,4.811c-3.074,0.619-6.408-0.039-8.668-2.3l-17.857-17.856c-1.674-1.674-2.511-3.813-2.511-6.418    l0.279-1.674l39.898-208.146l-66.965-66.964c-8.304-8.304-16.31-16.962-23.472-26.28c-5.323-6.926-10.284-14.277-13.852-22.277    C55.979,82.639,53.229,69.417,61.925,60.729C65.737,56.915,58.108,64.542,61.925,60.729z"></path></svg>
+			</div>
+			<div class="p-2 content">
+				<h3 class="font-bold text-lg">${location.name}</h3>
+				<ul>
+					<li><strong>Latitudine:</strong> ${location.coords[0]}</li>
+					<li><strong>Longitudine:</strong> ${location.coords[1]}</li>
+				</ul>
+			</div>
+		</div>`
+	})
+
+	document.body.appendChild(container)
+}
